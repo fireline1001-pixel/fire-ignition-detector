@@ -1290,9 +1290,10 @@ def imshow(path, im):
 if Path(inspect.stack()[0].filename).parent.parent.as_posix() in inspect.stack()[-1].filename:
     cv2.imread, cv2.imwrite, cv2.imshow = imread, imwrite, imshow  # redefine
 
+
 # Variables ------------------------------------------------------------------------------------------------------------
 def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
-    """Rescale coords (xyxy) from img1_shape to img0_shape"""
+    """Rescale coords (xyxy) from img1_shape to img0_shape."""
     if ratio_pad is None:  # calculate from img0_shape
         gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])
         pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # width, height

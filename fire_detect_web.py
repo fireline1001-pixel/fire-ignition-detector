@@ -1,18 +1,17 @@
-import streamlit as st
-from PIL import Image
-import torch
-from pathlib import Path
-import tempfile
 import os
+import tempfile
+
 import cv2
-import numpy as np
+import streamlit as st
+import torch
+
 from models.common import DetectMultiBackend
 from utils.datasets import LoadImages
 from utils.general import check_img_size, non_max_suppression, scale_coords
 from utils.torch_utils import select_device
 
 # 기본 가중치 경로
-DEFAULT_WEIGHT_PATH = 'runs/train/ignition_yolo_final_retrain2/weights/best.pt'
+DEFAULT_WEIGHT_PATH = "runs/train/ignition_yolo_final_retrain2/weights/best.pt"
 
 # 이미지 표시 크기
 IMG_DISPLAY_WIDTH = 800
@@ -40,13 +39,15 @@ if not os.path.exists(weights):
         st.stop()
 
 # YOLOv5 모델 초기화
-device = select_device('')
+device = select_device("")
 model = DetectMultiBackend(weights, device=device)
 stride, names = model.stride, model.names
 imgsz = check_img_size(640, s=stride)
 
 # 🔍 이미지 업로드
-uploaded_files = st.file_uploader("이미지를 선택하세요 (다중 선택 가능)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+uploaded_files = st.file_uploader(
+    "이미지를 선택하세요 (다중 선택 가능)", type=["jpg", "jpeg", "png"], accept_multiple_files=True
+)
 
 if uploaded_files:
     for uploaded_file in uploaded_files:
@@ -73,12 +74,11 @@ if uploaded_files:
                     det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
                     for *xyxy, conf, cls in reversed(det):
                         label = f"{names[int(cls)]} {conf:.2f}"
-                        cv2.rectangle(im0, (int(xyxy[0]), int(xyxy[1])), 
-                                      (int(xyxy[2]), int(xyxy[3])), (0, 0, 255), 2)
-                        cv2.putText(im0, label, (int(xyxy[0]), int(xyxy[1]) - 10), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                        cv2.rectangle(im0, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (0, 0, 255), 2)
+                        cv2.putText(
+                            im0, label, (int(xyxy[0]), int(xyxy[1]) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2
+                        )
 
                 # 결과 표시
                 im0_rgb = cv2.cvtColor(im0, cv2.COLOR_BGR2RGB)
                 st.image(im0_rgb, caption="예측 결과", width=IMG_DISPLAY_WIDTH)
-
