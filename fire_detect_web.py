@@ -1,84 +1,78 @@
 import streamlit as st
-from PIL import Image
 import torch
-from pathlib import Path
-import tempfile
 import os
-import cv2
+from PIL import Image
 import numpy as np
-from models.common import DetectMultiBackend
-from utils.datasets import LoadImages
-from utils.general import check_img_size, non_max_suppression, scale_coords
-from utils.torch_utils import select_device
+import tempfile
+from pathlib import Path
+import shutil
+import cv2
 
-# 기본 가중치 경로
-DEFAULT_WEIGHT_PATH = 'runs/train/ignition_yolo_final_retrain2/weights/best.pt'
+# 🔧 Streamlit 설정
+st.set_page_config(page_title="Ignition Point Detector", layout="centered")
 
-# 이미지 표시 크기
-IMG_DISPLAY_WIDTH = 800
+# 🔺 상단 로고 이미지
+st.image("logoall.jpg", use_column_width=True)
 
-# Streamlit 상단 디자인
-st.set_page_config(layout="centered")
 st.markdown("<h1 style='text-align: center;'>🔥 Ignition Point Detector</h1>", unsafe_allow_html=True)
 
-# 로고 이미지 표시
-if os.path.exists("logoall.jpg"):
-    st.image("logoall.jpg", width=500)
+# 🔺 YOLOv5 모델 업로드
+st.subheader("YOLOv5 모델 가중치 (.pt)")
+model_file = st.file_uploader("Drag and drop file here", type=["pt"], help=".pt 파일 업로드", label_visibility="collapsed")
+
+# 🔺 이미지 업로드
+st.subheader("분석할 화재 이미지 업로드")
+uploaded_images = st.file_uploader("이미지 파일을 업로드하세요", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+
+# 내부 경로 설정용 임시 디렉토리
+temp_dir = tempfile.mkdtemp()
+
+# 🧠 모델 로딩
+model = None
+if model_file is not None:
+    try:
+        model_path = os.path.join(temp_dir, model_file.name)
+        with open(model_path, "wb") as f:
+            f.write(model_file.getbuffer())
+        model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path, force_reload=True)
+        st.success("✅ 모델이 성공적으로 로드되었습니다.")
+    except Exception as e:
+        st.error(f"❌ 모델 로딩 중 오류 발생: {e}")
+
+# ▶️ 예측 실행
+if model is not None and uploaded_images:
+    st.subheader("🔍 예측 결과")
+
+    for img_file in uploaded_images:
+        try:
+            image = Image.open(img_file).convert("RGB")
+            img_np = np.array(image)
+            results = model(img_np)
+
+            # 결과 이미지 저장
+            pred_img = np.squeeze(results.render())  # render() returns list with one image
+            pred_pil = Image.fromarray(pred_img)
+
+            st.image(pred_pil, caption=f"결과: {img_file.name}", use_column_width=True)
+
+            # 이미지 다운로드
+            download_path = os.path.join(temp_dir, f"result_{img_file.name}")
+            pred_pil.save(download_path)
+            with open(download_path, "rb") as f:
+                st.download_button(
+                    label="결과 이미지 다운로드",
+                    data=f,
+                    file_name=f"result_{img_file.name}",
+                    mime="image/jpeg"
+                )
+        except Exception as e:
+            st.error(f"{img_file.name} 처리 중 오류 발생: {e}")
 else:
-    st.warning("로고 이미지 (logoall.jpg)를 찾을 수 없습니다.")
+    if model is None:
+        st.warning("YOLOv5 가중치 파일을 업로드해 주세요.")
+    elif not uploaded_images:
+        st.info("분석할 이미지를 업로드해 주세요.")
 
-# 가중치 파일 로드
-weights = DEFAULT_WEIGHT_PATH
-if not os.path.exists(weights):
-    weights = st.file_uploader("YOLOv5 모델 가중치 (.pt)", type=["pt"])
-    if weights:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pt") as tmp:
-            tmp.write(weights.read())
-            weights = tmp.name
-    else:
-        st.error("가중치 파일을 업로드해주세요.")
-        st.stop()
-
-# YOLOv5 모델 초기화
-device = select_device('')
-model = DetectMultiBackend(weights, device=device)
-stride, names = model.stride, model.names
-imgsz = check_img_size(640, s=stride)
-
-# 🔍 이미지 업로드
-uploaded_files = st.file_uploader("이미지를 선택하세요 (다중 선택 가능)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-if uploaded_files:
-    for uploaded_file in uploaded_files:
-        st.subheader(f"📷 {uploaded_file.name}")
-        # 임시 저장
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_img:
-            tmp_img.write(uploaded_file.read())
-            img_path = tmp_img.name
-
-        # 이미지 처리
-        dataset = LoadImages(img_path, img_size=imgsz, stride=stride)
-        for path, im, im0s, _ in dataset:
-            im = torch.from_numpy(im).to(device)
-            im = im.float() / 255.0
-            if im.ndimension() == 3:
-                im = im.unsqueeze(0)
-
-            pred = model(im)
-            pred = non_max_suppression(pred, conf_thres=0.25, iou_thres=0.45)
-
-            for i, det in enumerate(pred):
-                im0 = im0s.copy()
-                if len(det):
-                    det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
-                    for *xyxy, conf, cls in reversed(det):
-                        label = f"{names[int(cls)]} {conf:.2f}"
-                        cv2.rectangle(im0, (int(xyxy[0]), int(xyxy[1])), 
-                                      (int(xyxy[2]), int(xyxy[3])), (0, 0, 255), 2)
-                        cv2.putText(im0, label, (int(xyxy[0]), int(xyxy[1]) - 10), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-
-                # 결과 표시
-                im0_rgb = cv2.cvtColor(im0, cv2.COLOR_BGR2RGB)
-                st.image(im0_rgb, caption="예측 결과", width=IMG_DISPLAY_WIDTH)
-
+# 종료 시 임시 폴더 정리
+import atexit
+atexit.register(lambda: shutil.rmtree(temp_dir, ignore_errors=True))
