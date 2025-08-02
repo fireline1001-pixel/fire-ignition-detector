@@ -1,78 +1,88 @@
 import streamlit as st
 import torch
-import os
-from PIL import Image
-import numpy as np
-import tempfile
-from pathlib import Path
-import shutil
 import cv2
+import tempfile
+import os
+import numpy as np
+from PIL import Image
+from datetime import datetime
 
-# 🔧 Streamlit 설정
-st.set_page_config(page_title="Ignition Point Detector", layout="centered")
+st.set_page_config(layout="wide")
 
-# 🔺 상단 로고 이미지
+# 🔷 로고 표시
 st.image("logoall.jpg", use_column_width=True)
 
-st.markdown("<h1 style='text-align: center;'>🔥 Ignition Point Detector</h1>", unsafe_allow_html=True)
+st.markdown(
+    "<h1 style='text-align: center;'>🔥 Ignition Point Detector</h1>",
+    unsafe_allow_html=True,
+)
 
-# 🔺 YOLOv5 모델 업로드
+# 🔷 모델 가중치 업로드
 st.subheader("YOLOv5 모델 가중치 (.pt)")
-model_file = st.file_uploader("Drag and drop file here", type=["pt"], help=".pt 파일 업로드", label_visibility="collapsed")
+model_file = st.file_uploader(
+    "Drag and drop file here",
+    type=["pt"],
+    key="pt_upload",
+    label_visibility="collapsed"
+)
 
-# 🔺 이미지 업로드
-st.subheader("분석할 화재 이미지 업로드")
-uploaded_images = st.file_uploader("이미지 파일을 업로드하세요", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-# 내부 경로 설정용 임시 디렉토리
-temp_dir = tempfile.mkdtemp()
-
-# 🧠 모델 로딩
-model = None
-if model_file is not None:
+# 🔷 모델 로딩 함수 (캐싱 포함)
+@st.cache_resource
+def load_model_from_file(uploaded_pt_file):
     try:
-        model_path = os.path.join(temp_dir, model_file.name)
-        with open(model_path, "wb") as f:
-            f.write(model_file.getbuffer())
-        model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path, force_reload=True)
-        st.success("✅ 모델이 성공적으로 로드되었습니다.")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pt") as tmp_file:
+            tmp_file.write(uploaded_pt_file.read())
+            tmp_model_path = tmp_file.name
+        model = torch.hub.load("ultralytics/yolov5", "custom", path=tmp_model_path, force_reload=True)
+        return model
     except Exception as e:
-        st.error(f"❌ 모델 로딩 중 오류 발생: {e}")
+        st.error(f"모델 로딩 실패: {e}")
+        return None
 
-# ▶️ 예측 실행
-if model is not None and uploaded_images:
-    st.subheader("🔍 예측 결과")
+# 모델이 성공적으로 로드되었는지 확인
+model = None
+if model_file:
+    with st.spinner("YOLOv5 모델 로딩 중..."):
+        model = load_model_from_file(model_file)
+    if model:
+        st.success("✅ 모델이 성공적으로 로딩되었습니다!")
 
-    for img_file in uploaded_images:
-        try:
-            image = Image.open(img_file).convert("RGB")
-            img_np = np.array(image)
+# 🔷 분석할 이미지 업로드
+st.subheader("분석할 화재 이미지 업로드")
+image_files = st.file_uploader(
+    "이미지 파일을 업로드하세요",
+    type=["jpg", "jpeg", "png"],
+    accept_multiple_files=True
+)
+
+# 🔷 예측 및 결과 표시
+if model and image_files:
+    for uploaded_image in image_files:
+        image = Image.open(uploaded_image).convert("RGB")
+        img_np = np.array(image)
+
+        with st.spinner(f"🔍 {uploaded_image.name} 분석 중..."):
             results = model(img_np)
 
-            # 결과 이미지 저장
-            pred_img = np.squeeze(results.render())  # render() returns list with one image
-            pred_pil = Image.fromarray(pred_img)
+        # 🔸 예측 결과 이미지 가져오기
+        pred_img = np.squeeze(results.render())
 
-            st.image(pred_pil, caption=f"결과: {img_file.name}", use_column_width=True)
+        st.image(pred_img, caption=f"📌 분석 결과 - {uploaded_image.name}", use_column_width=True)
 
-            # 이미지 다운로드
-            download_path = os.path.join(temp_dir, f"result_{img_file.name}")
-            pred_pil.save(download_path)
-            with open(download_path, "rb") as f:
-                st.download_button(
-                    label="결과 이미지 다운로드",
-                    data=f,
-                    file_name=f"result_{img_file.name}",
-                    mime="image/jpeg"
-                )
-        except Exception as e:
-            st.error(f"{img_file.name} 처리 중 오류 발생: {e}")
+        # 🔸 저장 버튼
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        save_filename = f"result_{os.path.splitext(uploaded_image.name)[0]}_{timestamp}.jpg"
+        cv2.imwrite(save_filename, cv2.cvtColor(pred_img, cv2.COLOR_RGB2BGR))
+        with open(save_filename, "rb") as f:
+            st.download_button(
+                label="💾 결과 이미지 다운로드",
+                data=f,
+                file_name=save_filename,
+                mime="image/jpeg"
+            )
+        os.remove(save_filename)
 else:
-    if model is None:
+    if not model:
         st.warning("YOLOv5 가중치 파일을 업로드해 주세요.")
-    elif not uploaded_images:
+    elif not image_files:
         st.info("분석할 이미지를 업로드해 주세요.")
-
-# 종료 시 임시 폴더 정리
-import atexit
-atexit.register(lambda: shutil.rmtree(temp_dir, ignore_errors=True))
