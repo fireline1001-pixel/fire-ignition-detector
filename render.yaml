@@ -1,9 +1,6 @@
 services:
   - type: web
-    name: fire-ignition-detector
+    name: fire-detect-app
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run fire_detect_web.py --server.port $PORT --server.address 0.0.0.0
-    envVars:
-      - key: PORT
-        value: 10000
+    startCommand: streamlit run fire_detect_web.py --server.port=$PORT --server.address=0.0.0.0
