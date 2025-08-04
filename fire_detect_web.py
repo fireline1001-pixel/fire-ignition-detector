@@ -7,56 +7,66 @@ import cv2
 from PIL import Image
 import numpy as np
 
-# 페이지 설정
-st.set_page_config(page_title="Ignition Point Detector", page_icon="🔥", layout="wide")
+# 웹앱 제목과 설명
+st.set_page_config(page_title="Ignition Point Detector", layout="centered")
 
-# 상단 로고 및 제목 표시
-st.image("logoall.jpg", use_container_width=True)
+st.markdown("""
+    <div style='text-align: center;'>
+        <img src='https://raw.githubusercontent.com/fireline1001-pixel/fire-ignition-detector/main/logoall.jpg' width='500'/>
+        <h1>🔥 발화점 검출기</h1>
+    </div>
+""", unsafe_allow_html=True)
 
-st.markdown(
-    "<h1 style='text-align: center;'>🔥 발화점 검출기</h1>", unsafe_allow_html=True
-)
+# 가중치 파일 업로드
+st.subheader("YOLOv5 모델 가중치 (.pt)")
+model_file = st.file_uploader("여기에 파일을 끌어다 놓습니다.", type=["pt"], key="model")
 
-# YOLOv5 모델 업로드
-st.markdown("### YOLOv5 모델 가중치 (.pt)")
-model_file = st.file_uploader("여기에 파일을 끌어다 놓습니다.", type=["pt"])
+# 이미지 파일 업로드
+st.subheader("분석할 화재 이미지 업로드")
+image_files = st.file_uploader("이미지 파일을 업로드하세요", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="image")
 
-# 분석할 이미지 업로드
-st.markdown("### 분석할 화재 이미지 업로드")
-image_files = st.file_uploader("이미지 파일을 업로드하세요", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-# 임시 디렉토리 생성
-if model_file is not None and image_files:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # 모델 저장
-        model_path = os.path.join(tmpdir, model_file.name)
-        with open(model_path, "wb") as f:
-            f.write(model_file.read())
+# 예측 버튼
+if st.button("예측 실행"):
+    if not model_file:
+        st.warning("YOLOv5 가중치 파일을 업로드해 주세요.")
+    elif not image_files:
+        st.warning("분석할 이미지를 업로드해 주세요.")
+    else:
+        # 가중치 임시 저장
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pt") as tmp_model:
+            tmp_model.write(model_file.read())
+            model_path = tmp_model.name
 
         # 모델 로드
-        try:
-            model = torch.hub.load("ultralytics/yolov5", "custom", path=model_path, force_reload=True)
-        except Exception as e:
-            st.error(f"모델 로딩 실패: {e}")
-            st.stop()
+        model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path, force_reload=True)
 
-        # 이미지 저장 및 예측
-        st.markdown("### 🔍 예측 결과")
+        # 이미지 처리
+        for img_file in image_files:
+            # 임시 이미지 저장
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_img:
+                tmp_img.write(img_file.read())
+                tmp_img_path = tmp_img.name
 
-        for uploaded_file in image_files:
-            # 파일 저장
-            img_path = os.path.join(tmpdir, uploaded_file.name)
-            with open(img_path, "wb") as f:
-                f.write(uploaded_file.read())
+            # 이미지 열기 및 예측
+            img = cv2.imread(tmp_img_path)
+            results = model(img)
 
-            # 이미지 로드 및 예측
-            results = model(img_path)
-            results.render()  # 예측 박스를 그린 이미지 생성
+            # 결과 좌표 추출 및 시각화
+            boxes = results.xyxy[0].cpu().numpy()
+            for box in boxes:
+                x1, y1, x2, y2, conf, cls = box
+                cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
+                cv2.putText(img, f'{model.names[int(cls)]} {conf:.2f}', (int(x1), int(y1)-10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-            # 결과 시각화
-            for im in results.ims:
-                im_rgb = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-                st.image(im_rgb, caption="예측 결과", use_container_width=True)
+            # 이미지 RGB로 변환 후 출력
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            st.image(img_rgb, caption=f"Prediction - {img_file.name}", use_container_width=True)
 
-elif model_file is None or not image_files:
-    st.warning("YOLOv5 가중치 파일과 분석할 이미지를 업로드해주세요.")
+        # 임시 파일 삭제
+        os.unlink(model_path)
+        for img_file in image_files:
+            try:
+                os.unlink(img_file.name)
+            except:
+                pass
