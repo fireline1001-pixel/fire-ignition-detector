@@ -1,4 +1,3 @@
-
 import streamlit as st
 import tempfile
 import os
@@ -9,7 +8,8 @@ import cv2
 
 st.set_page_config(page_title="Fire Detection using YOLOv5", layout="wide")
 
-st.image("logoall.jpg", use_container_width=True)
+# 🔧 use_column_width로 수정
+st.image("logoall.jpg", use_column_width=True)
 
 st.title("🔥 Fire Detection using YOLOv5")
 st.markdown("Upload a YOLOv5 model (.pt) and fire scene images to analyze.")
@@ -36,4 +36,5 @@ if model_file and image_files:
         results.render()
         rendered_img = Image.fromarray(results.ims[0])
 
-        st.image(rendered_img, caption=img_file.name, use_container_width=True)
+        # 🔧 use_column_width로 수정
+        st.image(rendered_img, caption=img_file.name, use_column_width=True)
