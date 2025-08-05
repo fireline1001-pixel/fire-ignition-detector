@@ -8,7 +8,6 @@ import cv2
 import yaml
 import sys
 
-# yolov5 디렉토리를 경로에 추가
 sys.path.append(os.path.join(os.path.dirname(__file__), 'yolov5'))
 
 from models.experimental import attempt_load
