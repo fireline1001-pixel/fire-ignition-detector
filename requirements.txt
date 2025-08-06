@@ -1,8 +1,7 @@
 streamlit==1.29.0
-numpy
-opencv-python-headless
+torch==2.0.1
+torchvision==0.15.2
+opencv-python
 Pillow
-PyYAML
-matplotlib
-torch>=2.2.0
-torchvision>=0.22.1
+numpy
+requests
