@@ -8,7 +8,7 @@ for root, _, files in os.walk(label_dir):
             file_path = os.path.join(root, file)
             fixed_lines = []
             has_invalid = False
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 lines = f.readlines()
                 for line in lines:
                     parts = line.strip().split()
