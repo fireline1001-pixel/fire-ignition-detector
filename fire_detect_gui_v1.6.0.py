@@ -1,20 +1,20 @@
 import os
-import torch
 import tkinter as tk
-from tkinter import filedialog, messagebox, Scrollbar, Canvas, Frame
-from PIL import Image, ImageTk
 from pathlib import Path
+from tkinter import Canvas, Scrollbar, filedialog, messagebox
 
-from utils.datasets import LoadImages
-from utils.general import (
-    check_img_size, non_max_suppression, scale_coords, cv2, increment_path
-)
-from utils.torch_utils import select_device
+import torch
+from PIL import Image, ImageTk
+
 from models.common import DetectMultiBackend
+from utils.datasets import LoadImages
+from utils.general import check_img_size, cv2, increment_path, non_max_suppression, scale_coords
+from utils.torch_utils import select_device
 
 DEFAULT_WEIGHT_PATH = "runs/train/ignition_yolo_final_retrain2/weights/best.pt"
 IMG_DISPLAY_SIZE = (800, 600)
 ZOOM_STEPS = [0.5, 1.0, 1.5, 2.0]
+
 
 class FireDetectionApp:
     def __init__(self, root):
@@ -36,8 +36,13 @@ class FireDetectionApp:
         except Exception as e:
             print("로고 이미지 로딩 실패:", e)
 
-        title_label = tk.Label(top_frame, text="Ignition Point Detector [인천소방] v1.6.0",
-                               bg="white", fg="black", font=("맑은 고딕", 18, "bold"))
+        title_label = tk.Label(
+            top_frame,
+            text="Ignition Point Detector [인천소방] v1.6.0",
+            bg="white",
+            fg="black",
+            font=("맑은 고딕", 18, "bold"),
+        )
         title_label.pack(side="left", padx=10)
 
         # 중앙 프레임 (이미지 + 스크롤)
@@ -62,7 +67,9 @@ class FireDetectionApp:
         btn_frame.pack(pady=10)
 
         btn_style = {"bg": "blue", "fg": "white", "font": ("맑은 고딕", 12, "bold")}
-        tk.Button(btn_frame, text="이미지 선택 및 분석", command=self.select_and_detect_images, **btn_style).grid(row=0, column=0, padx=5)
+        tk.Button(btn_frame, text="이미지 선택 및 분석", command=self.select_and_detect_images, **btn_style).grid(
+            row=0, column=0, padx=5
+        )
         tk.Button(btn_frame, text="← 이전", command=self.prev_image, **btn_style).grid(row=0, column=1, padx=5)
         tk.Button(btn_frame, text="다음 →", command=self.next_image, **btn_style).grid(row=0, column=2, padx=5)
         tk.Button(btn_frame, text="＋ 확대", command=self.zoom_in, **btn_style).grid(row=0, column=3, padx=5)
@@ -73,14 +80,16 @@ class FireDetectionApp:
         if not file_paths:
             return
 
-        weights = DEFAULT_WEIGHT_PATH if os.path.exists(DEFAULT_WEIGHT_PATH) else filedialog.askopenfilename(
-            title="가중치 파일 선택", filetypes=[("Model weights", "*.pt")]
+        weights = (
+            DEFAULT_WEIGHT_PATH
+            if os.path.exists(DEFAULT_WEIGHT_PATH)
+            else filedialog.askopenfilename(title="가중치 파일 선택", filetypes=[("Model weights", "*.pt")])
         )
         if not weights or not os.path.exists(weights):
             messagebox.showerror("오류", "가중치 파일을 찾을 수 없습니다.")
             return
 
-        device = select_device('')
+        device = select_device("")
         model = DetectMultiBackend(weights, device=device)
         stride, names = model.stride, model.names
         imgsz = check_img_size(640, s=stride)
@@ -106,9 +115,18 @@ class FireDetectionApp:
                         det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
                         for *xyxy, conf, cls in reversed(det):
                             label = f"{names[int(cls)]} {conf:.2f}"
-                            cv2.rectangle(im0, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (0, 0, 255), 2)
-                            cv2.putText(im0, label, (int(xyxy[0]), int(xyxy[1]) - 10),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                            cv2.rectangle(
+                                im0, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (0, 0, 255), 2
+                            )
+                            cv2.putText(
+                                im0,
+                                label,
+                                (int(xyxy[0]), int(xyxy[1]) - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.8,
+                                (0, 0, 255),
+                                2,
+                            )
                     save_path = os.path.join(save_dir, os.path.basename(path))
                     cv2.imwrite(save_path, im0)
                     self.image_paths.append(save_path)
@@ -123,7 +141,7 @@ class FireDetectionApp:
         image_path = self.image_paths[self.image_index]
         img = Image.open(image_path)
         zoom = ZOOM_STEPS[self.zoom_index]
-        img = img.resize((int(IMG_DISPLAY_SIZE[0]*zoom), int(IMG_DISPLAY_SIZE[1]*zoom)))
+        img = img.resize((int(IMG_DISPLAY_SIZE[0] * zoom), int(IMG_DISPLAY_SIZE[1] * zoom)))
         self.tk_img = ImageTk.PhotoImage(img)
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
@@ -148,6 +166,7 @@ class FireDetectionApp:
         if self.zoom_index > 0:
             self.zoom_index -= 1
             self.show_image()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
