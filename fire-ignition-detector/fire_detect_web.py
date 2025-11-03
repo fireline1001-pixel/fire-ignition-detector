@@ -1,13 +1,12 @@
-
-import streamlit as st
-import torch
 import tempfile
-import os
+
 import cv2
 import numpy as np
-from PIL import Image
-from utils.general import non_max_suppression, scale_coords
+import streamlit as st
+import torch
+
 from models.experimental import attempt_load
+from utils.general import non_max_suppression, scale_coords
 
 st.set_page_config(layout="centered")
 st.image("logoall.jpg", use_column_width=True)
@@ -15,10 +14,12 @@ st.image("logoall.jpg", use_column_width=True)
 st.title("🔥 Fire Detection using YOLOv5")
 st.markdown("Upload a YOLOv5 model (.pt) and fire scene images to analyze.")
 
+
 @st.cache_resource
 def load_model(path):
     model = attempt_load(path, map_location=torch.device("cpu"))
     return model
+
 
 uploaded_model = st.file_uploader("Upload YOLOv5 Model (.pt)", type=["pt"])
 uploaded_images = st.file_uploader("Upload Image(s)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
@@ -47,6 +48,8 @@ if uploaded_model is not None and uploaded_images:
             for *xyxy, conf, cls in pred:
                 label = f"{model.names[int(cls)]} {conf:.2f}"
                 cv2.rectangle(img, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (0, 0, 255), 2)
-                cv2.putText(img, label, (int(xyxy[0]), int(xyxy[1]) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                cv2.putText(
+                    img, label, (int(xyxy[0]), int(xyxy[1]) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2
+                )
 
         st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), caption=uploaded_image.name, use_column_width=True)
